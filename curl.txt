@@ -1,0 +1,10 @@
+curl -X POST http://localhost:4000/data -H "Content-Type: application/json" -d "{\"latitude\": 51.5074, \"longitude\": -0.1278, \"temperature\": 15.5, \"humidity\": 80}"
+
+
+curl -X POST http://localhost:4000/data -H "Content-Type: application/json" -d "{\"latitude\": \"wrong_value\", \"longitude\": -0.1278, \"temperature\": 15.5, \"humidity\": 80}"
+
+
+curl -X POST http://localhost:4000/data -H "Content-Type: application/json" -d "{\"latitude\": eifjrijgintij, \"longitude\": -0.1278, \"temperature\": 15.5, \"humidity\": 80}"
+
+
+curl http://localhost:4000/data
