@@ -2,6 +2,9 @@ require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const { neon } = require("@neondatabase/serverless");
+const fs = require('fs');
+const path = require('path');
+
 
 const sql = neon(process.env.DATABASE_URL);
 
@@ -82,6 +85,111 @@ app.get("/data", async (req, res) => {
       res.status(500).json({ error: "An error occurred while retrieving data." });
     }
   });
+  
+
+  const getCitiesData = () => {
+    try {
+      const jsonData = fs.readFileSync(path.join(__dirname, 'AEEGSA.json'), 'utf8');
+      return JSON.parse(jsonData);
+    } catch (err) {
+      console.error('Failed to read or parse the JSON file:', err);
+      return [];
+    }
+  };
+  // Endpoint to get weather data by city name
+app.get('/getWeatherByCity', async (req, res) => {
+  const { city } = req.query;
+  const cities = getCitiesData();
+  const cityData = cities.find(c => c.name.toLowerCase() === city.toLowerCase());
+
+  if (!cityData) {
+    return res.status(404).json({ error: 'City not found' });
+  }
+
+  const { lat, lon , name} = cityData;
+  try {
+    const result = await sql`
+      SELECT temperature ,humidity
+      FROM weather_data
+      ORDER BY ((latitude::float - ${lat}::float) * (latitude::float - ${lat}::float) + 
+                (longitude::float - ${lon}::float) * (longitude::float - ${lon}::float)) ASC
+      LIMIT 1;
+    `;
+    const ret = {
+      ...result[0],
+      city: name
+      }
+      res.status(200).json(ret);
+  } catch (err) {
+    console.error("Error querying weather data by city coordinates:", err);
+    res.status(500).json({ error: "An error occurred during the SQL query." });
+  }
+});
+app.get('/getWeatherByGeo', async (req, res) => {
+  const { latitude, longitude, threshold = 10 } = req.query; // Default threshold to 10 km
+
+  // Validate input
+  if (!latitude || !longitude) {
+    return res.status(400).json({ error: 'Please provide both latitude and longitude.' });
+  }
+
+  try {
+    // Use the Haversine formula to calculate distances and filter results by the threshold
+    const result = await sql`
+      SELECT latitude, longitude, temperature, humidity,
+             LEAST(
+               6371 * ACOS(
+                 GREATEST(
+                   -1,
+                   LEAST(
+                     1,
+                     COS(RADIANS(${latitude}::float)) * COS(RADIANS(latitude::float)) *
+                     COS(RADIANS(longitude::float) - RADIANS(${longitude}::float)) +
+                     SIN(RADIANS(${latitude}::float)) * SIN(RADIANS(latitude::float))
+                   )
+                 )
+               ),
+               6371
+             ) AS distance
+      FROM weather_data
+      WHERE
+        LEAST(
+          6371 * ACOS(
+            GREATEST(
+              -1,
+              LEAST(
+                1,
+                COS(RADIANS(${latitude}::float)) * COS(RADIANS(latitude::float)) *
+                COS(RADIANS(longitude::float) - RADIANS(${longitude}::float)) +
+                SIN(RADIANS(${latitude}::float)) * SIN(RADIANS(latitude::float))
+              )
+            )
+          ),
+          6371
+        ) <= ${threshold}
+      ORDER BY distance ASC
+      LIMIT 1;
+    `;
+
+    // Handle no results found
+    if (result.length === 0) {
+      return res.status(404).json({ error: "No weather data found within the specified radius." });
+    }
+
+    // Return the closest weather data point
+    res.status(200).json({
+      latitude: result[0].latitude,
+      longitude: result[0].longitude,
+      temperature: result[0].temperature,
+      humidity: result[0].humidity,
+      distance: result[0].distance,
+    });
+  } catch (err) {
+    console.error("Error querying weather data by geo-location:", err);
+    res.status(500).json({ error: "An error occurred during the SQL query." });
+  }
+});
+
 
 // Start the server
 app.listen(port, () => {
