@@ -202,20 +202,21 @@ app.get('/getAggregatedWeather', async (req, res) => {
       SELECT 
         AVG(temperature) AS avg_temperature,
         AVG(humidity) AS avg_humidity,
-        VARIANCE(temperature) AS temperature_variance,
-        VARIANCE(humidity) AS humidity_variance
-      FROM (
-        SELECT 
-          temperature,
-          humidity,
-          6371 * ACOS(
-            COS(RADIANS(${latitude}::float)) * COS(RADIANS(latitude::float)) *
-            COS(RADIANS(longitude::float) - RADIANS(${longitude}::float)) +
-            SIN(RADIANS(${latitude}::float)) * SIN(RADIANS(latitude::float))
-          ) AS distance
-        FROM weather_data
-      ) AS subquery
-      WHERE distance <= ${radius};
+        VAR_POP(temperature) AS temperature_variance,
+        VAR_POP(humidity) AS humidity_variance
+      FROM weather_data
+      WHERE 
+        6371 * ACOS(
+          GREATEST(
+            -1,
+            LEAST(
+              1,
+              COS(RADIANS(${latitude}::float)) * COS(RADIANS(latitude::float)) *
+              COS(RADIANS(longitude::float) - RADIANS(${longitude}::float)) +
+              SIN(RADIANS(${latitude}::float)) * SIN(RADIANS(latitude::float))
+            )
+          )
+        ) <= ${radius};
     `;
 
     // Handle no results found
