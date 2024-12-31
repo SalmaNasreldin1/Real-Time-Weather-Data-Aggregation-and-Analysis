@@ -5,7 +5,6 @@ const { neon } = require("@neondatabase/serverless");
 const fs = require('fs');
 const path = require('path');
 
-
 const sql = neon(process.env.DATABASE_URL);
 
 const app = express();
@@ -35,7 +34,6 @@ const initializeDatabase = async () => {
 
 // Call the function to initialize the database
 initializeDatabase();
-
 
 // Error-handling middleware for invalid JSON
 app.use((err, req, res, next) => {
@@ -74,7 +72,6 @@ app.post("/data", async (req, res) => {
   }
 });
 
-
 // GET endpoint to retrieve all weather data
 app.get("/data", async (req, res) => {
     try {
@@ -85,9 +82,8 @@ app.get("/data", async (req, res) => {
       res.status(500).json({ error: "An error occurred while retrieving data." });
     }
   });
-  
 
-  const getCitiesData = () => {
+const getCitiesData = () => {
     try {
       const jsonData = fs.readFileSync(path.join(__dirname, 'AEEGSA.json'), 'utf8');
       return JSON.parse(jsonData);
@@ -96,7 +92,8 @@ app.get("/data", async (req, res) => {
       return [];
     }
   };
-  // Endpoint to get weather data by city name
+
+// Endpoint to get weather data by city name
 app.get('/getWeatherByCity', async (req, res) => {
   const { city } = req.query;
   const cities = getCitiesData();
@@ -125,6 +122,7 @@ app.get('/getWeatherByCity', async (req, res) => {
     res.status(500).json({ error: "An error occurred during the SQL query." });
   }
 });
+
 app.get('/getWeatherByGeo', async (req, res) => {
   const { latitude, longitude, threshold = 10 } = req.query; // Default threshold to 10 km
 
@@ -190,6 +188,48 @@ app.get('/getWeatherByGeo', async (req, res) => {
   }
 });
 
+// Endpoint to compute aggregated weather data
+app.get('/getAggregatedWeather', async (req, res) => {
+  const { latitude, longitude, radius } = req.query;
+
+  // Validate input
+  if (!latitude || !longitude || !radius) {
+    return res.status(400).json({ error: 'Please provide latitude, longitude, and radius.' });
+  }
+
+  try {
+    const result = await sql`
+      SELECT 
+        AVG(temperature) AS avg_temperature,
+        AVG(humidity) AS avg_humidity,
+        VARIANCE(temperature) AS temperature_variance,
+        VARIANCE(humidity) AS humidity_variance
+      FROM (
+        SELECT 
+          temperature,
+          humidity,
+          6371 * ACOS(
+            COS(RADIANS(${latitude}::float)) * COS(RADIANS(latitude::float)) *
+            COS(RADIANS(longitude::float) - RADIANS(${longitude}::float)) +
+            SIN(RADIANS(${latitude}::float)) * SIN(RADIANS(latitude::float))
+          ) AS distance
+        FROM weather_data
+      ) AS subquery
+      WHERE distance <= ${radius};
+    `;
+
+    // Handle no results found
+    if (!result[0] || Object.values(result[0]).some(value => value === null)) {
+      return res.status(404).json({ error: 'No weather data found within the specified radius.' });
+    }
+
+    // Return aggregated data
+    res.status(200).json(result[0]);
+  } catch (err) {
+    console.error("Error querying aggregated weather data:", err);
+    res.status(500).json({ error: "An error occurred during the SQL query." });
+  }
+});
 
 // Start the server
 app.listen(port, () => {

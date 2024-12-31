@@ -8,3 +8,17 @@ curl -X POST http://localhost:4000/data -H "Content-Type: application/json" -d "
 
 
 curl http://localhost:4000/data
+
+by city
+
+curl -X GET "http://localhost:4000/getWeatherByCity?city=Cairo"
+
+
+exact geolocations
+
+curl -X GET "http://localhost:4000/getWeatherByGeo?latitude=24.45118&longitude=54.39696&threshold=0.01"
+
+
+Aggregateed weather
+
+ GET "http://localhost:4000/getAggregatedWeather?latitude=24.45118&longitude=54.39696&radius=10"
