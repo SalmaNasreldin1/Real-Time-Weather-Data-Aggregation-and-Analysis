@@ -5,6 +5,7 @@ const { neon } = require("@neondatabase/serverless");
 const fs = require('fs');
 const path = require('path');
 
+
 const sql = neon(process.env.DATABASE_URL);
 
 const app = express();
@@ -34,6 +35,7 @@ const initializeDatabase = async () => {
 
 // Call the function to initialize the database
 initializeDatabase();
+
 
 // Error-handling middleware for invalid JSON
 app.use((err, req, res, next) => {
@@ -72,10 +74,12 @@ app.post("/data", async (req, res) => {
   }
 });
 
+
 // GET endpoint to retrieve all weather data
 app.get("/data", async (req, res) => {
     try {
       const result = await sql`SELECT * FROM weather_data ORDER BY submitted_at DESC;`;
+      res.setHeader("Content-Type", "application/json");
       res.status(200).json(result);
     } catch (err) {
       console.error("Error retrieving data:", err);
@@ -83,7 +87,7 @@ app.get("/data", async (req, res) => {
     }
   });
 
-const getCitiesData = () => {
+  const getCitiesData = () => {
     try {
       const jsonData = fs.readFileSync(path.join(__dirname, 'AEEGSA.json'), 'utf8');
       return JSON.parse(jsonData);
@@ -92,10 +96,17 @@ const getCitiesData = () => {
       return [];
     }
   };
+  // Endpoint to get weather data by city name
+app.post('/getWeatherByCity', async (req, res) => {
+  console.log('Request Query:', req.body); // Logs the query parameters
+  const { city } = req.body;
+  if (!city) {
+    return res.status(400).json({ error: 'City is required in the request body' });
+  }
 
-// Endpoint to get weather data by city name
-app.get('/getWeatherByCity', async (req, res) => {
-  const { city } = req.query;
+  console.log(req.body);
+
+  console.log(city);
   const cities = getCitiesData();
   const cityData = cities.find(c => c.name.toLowerCase() === city.toLowerCase());
 
@@ -116,6 +127,7 @@ app.get('/getWeatherByCity', async (req, res) => {
       ...result[0],
       city: name
       }
+      res.setHeader("Content-Type", "application/json");
       res.status(200).json(ret);
   } catch (err) {
     console.error("Error querying weather data by city coordinates:", err);
@@ -123,8 +135,9 @@ app.get('/getWeatherByCity', async (req, res) => {
   }
 });
 
-app.get('/getWeatherByGeo', async (req, res) => {
-  const { latitude, longitude, threshold = 10 } = req.query; // Default threshold to 10 km
+
+app.post('/getWeatherByGeo', async (req, res) => {
+  const { latitude, longitude, threshold = 10 } = req.body; // Default threshold to 10 km
 
   // Validate input
   if (!latitude || !longitude) {
@@ -174,6 +187,8 @@ app.get('/getWeatherByGeo', async (req, res) => {
       return res.status(404).json({ error: "No weather data found within the specified radius." });
     }
 
+
+    res.setHeader("Content-Type", "application/json");
     // Return the closest weather data point
     res.status(200).json({
       latitude: result[0].latitude,
@@ -188,9 +203,9 @@ app.get('/getWeatherByGeo', async (req, res) => {
   }
 });
 
-// Endpoint to compute aggregated weather data
-app.get('/getAggregatedWeather', async (req, res) => {
-  const { latitude, longitude, radius } = req.query;
+// Aggregated Weather Statistics Endpoint
+app.post('/getAggregatedWeather', async (req, res) => {
+  const { latitude, longitude, radius } = req.body;
 
   // Validate input
   if (!latitude || !longitude || !radius) {
@@ -198,6 +213,7 @@ app.get('/getAggregatedWeather', async (req, res) => {
   }
 
   try {
+    // Calculate aggregated statistics for data points within the specified radius
     const result = await sql`
       SELECT 
         AVG(temperature) AS avg_temperature,
@@ -219,18 +235,27 @@ app.get('/getAggregatedWeather', async (req, res) => {
         ) <= ${radius};
     `;
 
-    // Handle no results found
-    if (!result[0] || Object.values(result[0]).some(value => value === null)) {
+    // Check if results are available
+    if (result.length === 0 || result[0].avg_temperature === null) {
       return res.status(404).json({ error: 'No weather data found within the specified radius.' });
     }
 
-    // Return aggregated data
-    res.status(200).json(result[0]);
+
+    res.setHeader("Content-Type", "application/json");
+
+    // Return the aggregated statistics
+    res.status(200).json({
+      avg_temperature: parseFloat(result[0].avg_temperature),
+      avg_humidity: parseFloat(result[0].avg_humidity),
+      temperature_variance: parseFloat(result[0].temperature_variance),
+      humidity_variance: parseFloat(result[0].humidity_variance),
+    });
   } catch (err) {
-    console.error("Error querying aggregated weather data:", err);
-    res.status(500).json({ error: "An error occurred during the SQL query." });
+    console.error('Error computing aggregated weather statistics:', err);
+    res.status(500).json({ error: 'An error occurred during the SQL query.' });
   }
 });
+
 
 // Start the server
 app.listen(port, () => {
