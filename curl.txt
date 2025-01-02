@@ -1,24 +1,54 @@
-curl -X POST http://localhost:4000/data -H "Content-Type: application/json" -d "{\"latitude\": 51.5074, \"longitude\": -0.1278, \"temperature\": 15.5, \"humidity\": 80}"
+#!/bin/bash
 
+# 1. Submit Weather Data (POST /data)
+echo "Submitting weather data..."
+curl -X POST http://localhost:4000/data \
+-H "Content-Type: application/json" \
+-d '{
+  "latitude": 42.5078,
+  "longitude": 1.5211,
+  "temperature": 25.5,
+  "humidity": 65
+}'
 
-curl -X POST http://localhost:4000/data -H "Content-Type: application/json" -d "{\"latitude\": \"wrong_value\", \"longitude\": -0.1278, \"temperature\": 15.5, \"humidity\": 80}"
+echo -e "\n"
 
+# 2. Retrieve All Weather Data (GET /data)
+echo "Retrieving all weather data..."
+curl -X GET http://localhost:4000/data
 
-curl -X POST http://localhost:4000/data -H "Content-Type: application/json" -d "{\"latitude\": eifjrijgintij, \"longitude\": -0.1278, \"temperature\": 15.5, \"humidity\": 80}"
+echo -e "\n"
 
+# 3. Retrieve Weather Data by City (POST /getWeatherByCity)
+echo "Retrieving weather data by city..."
+curl -X POST http://localhost:4000/getWeatherByCity \
+-H "Content-Type: application/json" \
+-d '{
+  "city": "Andorra la Vella"
+}'
 
-curl http://localhost:4000/data
+echo -e "\n"
 
-by city
+# 4. Retrieve Weather Data by Geo-Location (POST /getWeatherByGeo)
+echo "Retrieving weather data by geo-location..."
+curl -X POST http://localhost:4000/getWeatherByGeo \
+-H "Content-Type: application/json" \
+-d '{
+  "latitude": 42.5078,
+  "longitude": 1.5211,
+  "threshold": 10
+}'
 
-curl -X GET "http://localhost:4000/getWeatherByCity?city=Cairo"
+echo -e "\n"
 
+# 5. Aggregated Weather Statistics (POST /getAggregatedWeather)
+echo "Retrieving aggregated weather statistics..."
+curl -X POST http://localhost:4000/getAggregatedWeather \
+-H "Content-Type: application/json" \
+-d '{
+  "latitude": 42.5078,
+  "longitude": 1.5211,
+  "radius": 50
+}'
 
-exact geolocations
-
-curl -X GET "http://localhost:4000/getWeatherByGeo?latitude=24.45118&longitude=54.39696&threshold=0.01"
-
-
-Aggregateed weather
-
-curl -X GET "http://localhost:4000/getAggregatedWeather?latitude=24.45118&longitude=54.39696&radius=10"
+echo -e "\nDone!"
